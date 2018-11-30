@@ -1,4 +1,5 @@
 import * as ts from 'typescript';
+import { Change, InsertChange, NoopChange } from './change';
 /**
  * @license
  * Copyright Google Inc. All Rights Reserved.
@@ -6,7 +7,6 @@ import * as ts from 'typescript';
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-import { Change, InsertChange, NoopChange } from './change';
 /**
  * Find all nodes from the AST in the subtree of node of SyntaxKind kind.
  * @param node
@@ -75,6 +75,10 @@ export declare function isImported(source: ts.SourceFile, classifiedName: string
 export declare function addPropertyToComponent(source: ts.SourceFile, componentPath: string, symbol: string, type: string, value?: string, isPrivate?: boolean): Change;
 export declare function addFunctionToClass(source: ts.SourceFile, filePath: string, fnBody: string): Change;
 export declare function setDecorator(source: ts.SourceFile, filePath: string, decorator: string): Change;
+export declare function getDecoratorObject(source: ts.SourceFile): string;
+export declare function getDecoratorName(source: ts.SourceFile): string;
+export declare function getDecoratorFileName(source: ts.SourceFile, path: string, decorator: string): string;
+export declare function addAbsolutePath(path: string): string;
 export declare function addDependencyToClass(source: ts.SourceFile, filePath: string, symbol: string, symbolType: string): NoopChange | InsertChange;
 export declare function addContentToMethod(source: ts.SourceFile, filePath: string, methodName: string, content: string): InsertChange;
 export declare function addPathsToRoutingModule(source: ts.SourceFile, filePath: string, paths: string[]): InsertChange;

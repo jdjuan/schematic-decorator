@@ -1,59 +1,96 @@
-import { InsertChange, Change, ReplaceChange } from '../utils/change';
-import {
-  Rule,
-  Tree,
-  SchematicContext,
-} from '@angular-devkit/schematics';
-
-import { addFunctionToClass, addDependencyToClass, setDecorator } from '../utils/ast-utils';
 import * as ts from 'typescript';
-import { BASIC_DATA_FETCHING, NEW_DECORATOR } from './fn-body';
-import { insertImport } from '../utils/route-utils';
+import { Change, InsertChange, ReplaceChange } from '../utils/change';
+import {
+  DirEntry,
+  Rule,
+  SchematicContext,
+  Tree
+  } from '@angular-devkit/schematics';
+import { fileBuffer } from '@angular-devkit/core/src/virtual-fs/host';
+import { path } from '@angular-devkit/core';
+import {
+  getDecoratorFileName,
+  getDecoratorName,
+  getDecoratorObject,
+  setDecorator,
+} from '../utils/ast-utils';
 
-
-export default function (options: any): Rule { 
+export default function(): Rule {
   return (_tree: Tree, _context: SchematicContext) => {
-    // Juan, I had built this example to get the path from '--service /my/service/path'. 
-    // that's why it gets it from .service, but you can change this as you want
-    // you can even read all the paths with a '.component' string in the name or something
-    let path = options.service;
-    const sourceText = _tree.read(path)!.toString('utf-8');
-    const source = ts.createSourceFile(path, sourceText, ts.ScriptTarget.Latest, true);
-
-    const exportRecorder = _tree.beginUpdate(path);
+    const allComponents = _recurse(_tree.getDir('src/app'));
     const changes: Change[] = [];
-
-    let addFunctionChange = addFunctionToClass(source, path, BASIC_DATA_FETCHING);
-    changes.push(addFunctionChange);
-
-    // Juan, this is where we change the decorator
-    let setDectoratorChange = setDecorator(source, path, NEW_DECORATOR);
-    // we push this 'change' to the queue of changes that will be executed later on
-    changes.push(setDectoratorChange);
-
-    let importChange = [
-      insertImport(source, path, 'Observable', 'rxjs/Observable'),
-      insertImport(source, path, 'HttpClient', '@angular/common/http'),
-      insertImport(source, path, 'MOCK_DATA', './data.mock'),
-      insertImport(source, path, undefined as any, 'rxjs/add/operator/map', false, true)
-    ];
-    changes.push(...importChange);
-
-    let dependencyChange = addDependencyToClass(source, path, 'http', 'HttpClient');
-    changes.push(dependencyChange);
-
-    for (const change of changes) {
-      if (change instanceof InsertChange) {
-        exportRecorder.insertLeft(change.pos, change.toAdd);
+    allComponents.forEach((component) => {
+      const exportRecorder = _tree.beginUpdate(component.fullPath);
+      changes.push(replaceDecoratorWithObject(component, _tree));
+      for (const change of changes) {
+        if (change instanceof InsertChange) {
+          exportRecorder.insertLeft(change.pos, change.toAdd);
+        }
+        if (change instanceof ReplaceChange) {
+          exportRecorder.remove(change.pos, change.oldText.length);
+          exportRecorder.insertLeft(change.pos, change.newText);
+        }
       }
-      if (change instanceof ReplaceChange) {
-        // Juan, this is where we replace the content in 2 steps (remove old content, insert new content)
-        exportRecorder.remove(change.pos, change.oldText.length);
-        exportRecorder.insertLeft(change.pos, change.newText);
-      }
-    }
-    _tree.commitUpdate(exportRecorder);
+      _tree.commitUpdate(exportRecorder);
+    });
 
     return _tree;
+  };
+}
+
+function replaceDecoratorWithObject(component: componentPath, _tree: Tree): Change {
+  const sourceText = _tree.read(component.fullPath)!.toString('utf-8');
+  const source = ts.createSourceFile(
+    component.fullPath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+
+  const decoratorName = getDecoratorName(source);
+  const decoratorFileName = getDecoratorFileName(
+    source,
+    component.fullPath,
+    decoratorName,
+  );
+  // If not already an object
+  if (decoratorFileName) {
+    const decoratorFilePath = `${component.path}/${decoratorFileName}.ts`;
+    console.log(decoratorFilePath);
+
+    const decoratorFile = readDecoratorFile(_tree, decoratorFilePath);
+    const decoratorObject = getDecoratorObject(decoratorFile);
+    return setDecorator(source, component.fullPath, decoratorObject);
   }
+  return null;
+}
+
+function _recurse(dir: DirEntry): componentPath[] {
+  return [
+    ...dir.subfiles
+      .filter((fileName) => fileName.endsWith('.component.ts'))
+      .map((fileName) => ({
+        path: dir.path,
+        file: fileName,
+        fullPath: `${dir.path}/${fileName}`,
+      })),
+    ...[].concat(...dir.subdirs.map((x) => _recurse(dir.dir(x)))),
+  ];
+}
+
+function readDecoratorFile(_tree: Tree, decoratorPath: string) {
+  const metaDecoratorSourceText = _tree.read(decoratorPath)!.toString('utf-8');
+  const metaDecoratorSource = ts.createSourceFile(
+    decoratorPath,
+    metaDecoratorSourceText,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  return metaDecoratorSource;
+}
+
+interface componentPath {
+  path: string;
+  file: string;
+  fullPath: string;
 }

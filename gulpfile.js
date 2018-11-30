@@ -76,7 +76,7 @@ gulp.task('clean', function() {
 gulp.task('watch', function() {
   gulp.watch([`${srcDir}/**/*.ts`, `!${srcDir}/**/files/**/*.ts`, `!${srcDir}/**/*.d.ts`], ['tsc']);
   gulp.watch(allButTsGlob, ['copy:src']);
-  gulp.watch(rootFiles, ['copy:root', 'edit:manifest']);
+  gulp.watch(rootFiles, ['copy:root']);
 });
 
 gulp.task('build', ['clean', 'tsc', 'copy:src', 'copy:root']);

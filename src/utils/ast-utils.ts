@@ -1,5 +1,12 @@
 import * as ts from 'typescript';
+import {
+  Change,
+  InsertChange,
+  NoopChange,
+  ReplaceChange
+  } from './change';
 import { insertImport } from './route-utils';
+import { normalize } from '@angular-devkit/core';
 /**
  * @license
  * Copyright Google Inc. All Rights Reserved.
@@ -7,12 +14,6 @@ import { insertImport } from './route-utils';
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-import {
-  Change,
-  InsertChange,
-  NoopChange,
-  ReplaceChange,
-} from './change';
 
 /**
  * Find all nodes from the AST in the subtree of node of SyntaxKind kind.
@@ -21,11 +22,7 @@ import {
  * @param max The maximum number of items to return.
  * @return all nodes of kind, or [] if none is found
  */
-export function findNodes(
-  node: ts.Node,
-  kind: ts.SyntaxKind,
-  max = Infinity,
-): ts.Node[] {
+export function findNodes(node: ts.Node, kind: ts.SyntaxKind, max = Infinity): ts.Node[] {
   if (!node || max == 0) {
     return [];
   }
@@ -135,9 +132,7 @@ export function insertAfterLastOccurrence(
       `tried to insert ${toInsert} as first occurence with no fallback position`,
     );
   }
-  const lastItemPosition: number = lastItem
-    ? lastItem.end
-    : fallbackPos;
+  const lastItemPosition: number = lastItem ? lastItem.end : fallbackPos;
 
   return new InsertChange(file, lastItemPosition, toInsert);
 }
@@ -216,34 +211,22 @@ export function getDecoratorMetadata(
     source,
     ts.SyntaxKind.ImportDeclaration,
   )
-    .map((node: ts.ImportDeclaration) =>
-      _angularImportsFromNode(node, source),
-    )
-    .reduce(
-      (
-        acc: { [name: string]: string },
-        current: { [name: string]: string },
-      ) => {
-        for (const key of Object.keys(current)) {
-          acc[key] = current[key];
-        }
+    .map((node: ts.ImportDeclaration) => _angularImportsFromNode(node, source))
+    .reduce((acc: { [name: string]: string }, current: { [name: string]: string }) => {
+      for (const key of Object.keys(current)) {
+        acc[key] = current[key];
+      }
 
-        return acc;
-      },
-      {},
-    );
+      return acc;
+    }, {});
   return getSourceNodes(source)
     .filter((node) => {
       return (
         node.kind == ts.SyntaxKind.Decorator &&
-        (node as ts.Decorator).expression.kind ==
-          ts.SyntaxKind.CallExpression
+        (node as ts.Decorator).expression.kind == ts.SyntaxKind.CallExpression
       );
     })
-    .map(
-      (node) =>
-        (node as ts.Decorator).expression as ts.CallExpression,
-    )
+    .map((node) => (node as ts.Decorator).expression as ts.CallExpression)
     .filter((expr) => {
       if (expr.expression.kind == ts.SyntaxKind.Identifier) {
         const id = expr.expression as ts.Identifier;
@@ -252,9 +235,7 @@ export function getDecoratorMetadata(
           id.getFullText(source) == identifier &&
           angularImports[id.getFullText(source)] === module
         );
-      } else if (
-        expr.expression.kind == ts.SyntaxKind.PropertyAccessExpression
-      ) {
+      } else if (expr.expression.kind == ts.SyntaxKind.PropertyAccessExpression) {
         // This covers foo.NgModule when importing * as foo.
         const paExpr = expr.expression as ts.PropertyAccessExpression;
         // If the left expression is not an identifier, just give up at that point.
@@ -263,14 +244,9 @@ export function getDecoratorMetadata(
         }
 
         const id = paExpr.name.text;
-        const moduleId = (paExpr.expression as ts.Identifier).getText(
-          source,
-        );
+        const moduleId = (paExpr.expression as ts.Identifier).getText(source);
 
-        return (
-          id === identifier &&
-          angularImports[moduleId + '.'] === module
-        );
+        return id === identifier && angularImports[moduleId + '.'] === module;
       }
 
       return false;
@@ -278,8 +254,7 @@ export function getDecoratorMetadata(
     .filter(
       (expr) =>
         expr.arguments[0] &&
-        expr.arguments[0].kind ==
-          ts.SyntaxKind.ObjectLiteralExpression,
+        expr.arguments[0].kind == ts.SyntaxKind.ObjectLiteralExpression,
     )
     .map((expr) => expr.arguments[0] as ts.ObjectLiteralExpression);
 }
@@ -291,11 +266,7 @@ export function addSymbolToNgModuleMetadata(
   symbolName: string,
   importPath: string | null = null,
 ): Change[] {
-  const nodes = getDecoratorMetadata(
-    source,
-    'NgModule',
-    '@angular/core',
-  );
+  const nodes = getDecoratorMetadata(source, 'NgModule', '@angular/core');
   let node: any = nodes[0]; // tslint:disable-line:no-any
   // Find the decorator declaration.
   if (!node) {
@@ -311,9 +282,7 @@ export function addSymbolToNgModuleMetadata(
       const name = prop.name;
       switch (name.kind) {
         case ts.SyntaxKind.Identifier:
-          return (
-            (name as ts.Identifier).getText(source) == metadataField
-          );
+          return (name as ts.Identifier).getText(source) == metadataField;
         case ts.SyntaxKind.StringLiteral:
           return (name as ts.StringLiteral).text == metadataField;
       }
@@ -347,12 +316,7 @@ export function addSymbolToNgModuleMetadata(
     if (importPath !== null) {
       return [
         new InsertChange(ngModulePath, position, toInsert),
-        insertImport(
-          source,
-          ngModulePath,
-          symbolName.replace(/\..*$/, ''),
-          importPath,
-        ),
+        insertImport(source, ngModulePath, symbolName.replace(/\..*$/, ''), importPath),
       ];
     } else {
       return [new InsertChange(ngModulePath, position, toInsert)];
@@ -361,10 +325,7 @@ export function addSymbolToNgModuleMetadata(
   const assignment = matchingProperties[0] as ts.PropertyAssignment;
 
   // If it's not an array, nothing we can do really.
-  if (
-    assignment.initializer.kind !==
-    ts.SyntaxKind.ArrayLiteralExpression
-  ) {
+  if (assignment.initializer.kind !== ts.SyntaxKind.ArrayLiteralExpression) {
     return [];
   }
 
@@ -377,9 +338,7 @@ export function addSymbolToNgModuleMetadata(
   }
 
   if (!node) {
-    console.log(
-      'No app module found. Please add your new class to your component.',
-    );
+    console.log('No app module found. Please add your new class to your component.');
 
     return [];
   }
@@ -408,9 +367,7 @@ export function addSymbolToNgModuleMetadata(
       // Get the indentation of the last element, if any.
       const text = node.getFullText(source);
       if (text.match('^\r?\r?\n')) {
-        toInsert = `,${
-          text.match(/^\r?\n\s+/)[0]
-        }${metadataField}: [${symbolName}]`;
+        toInsert = `,${text.match(/^\r?\n\s+/)[0]}${metadataField}: [${symbolName}]`;
       } else {
         toInsert = `, ${metadataField}: [${symbolName}]`;
       }
@@ -431,12 +388,7 @@ export function addSymbolToNgModuleMetadata(
   if (importPath !== null) {
     return [
       new InsertChange(ngModulePath, position, toInsert),
-      insertImport(
-        source,
-        ngModulePath,
-        symbolName.replace(/\..*$/, ''),
-        importPath,
-      ),
+      insertImport(source, ngModulePath, symbolName.replace(/\..*$/, ''), importPath),
     ];
   }
 
@@ -550,18 +502,15 @@ export function isImported(
         imp.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral,
     )
     .filter((imp: ts.ImportDeclaration) => {
-      return (
-        (<ts.StringLiteral>imp.moduleSpecifier).text === importPath
-      );
+      return (<ts.StringLiteral>imp.moduleSpecifier).text === importPath;
     })
     .filter((imp: ts.ImportDeclaration) => {
       if (!imp.importClause) {
         return false;
       }
-      const nodes = findNodes(
-        imp.importClause,
-        ts.SyntaxKind.ImportSpecifier,
-      ).filter((n) => n.getText() === classifiedName);
+      const nodes = findNodes(imp.importClause, ts.SyntaxKind.ImportSpecifier).filter(
+        (n) => n.getText() === classifiedName,
+      );
 
       return nodes.length > 0;
     });
@@ -585,19 +534,10 @@ export function addPropertyToComponent(
   value: string = undefined,
   isPrivate: boolean = false,
 ): Change {
-  const constructor = findNodes(
-    source,
-    ts.SyntaxKind.ConstructorKeyword,
-  );
-  let declaration = `\n\n ${
-    isPrivate ? 'private' : ''
-  } ${symbol}: ${type}`;
+  const constructor = findNodes(source, ts.SyntaxKind.ConstructorKeyword);
+  let declaration = `\n\n ${isPrivate ? 'private' : ''} ${symbol}: ${type}`;
   declaration += `${value ? ' = ' + value : ''};`;
-  return new InsertChange(
-    componentPath,
-    constructor[0].pos,
-    declaration,
-  );
+  return new InsertChange(componentPath, constructor[0].pos, declaration);
 }
 
 export function addFunctionToClass(
@@ -605,15 +545,8 @@ export function addFunctionToClass(
   filePath: string,
   fnBody: string,
 ): Change {
-  const classDeclaration = findNodes(
-    source,
-    ts.SyntaxKind.ClassDeclaration,
-  );
-  return new InsertChange(
-    filePath,
-    classDeclaration[0].end - 1,
-    fnBody,
-  );
+  const classDeclaration = findNodes(source, ts.SyntaxKind.ClassDeclaration);
+  return new InsertChange(filePath, classDeclaration[0].end - 1, fnBody);
 }
 
 // Juan, this is our custom setDecorator function
@@ -625,26 +558,56 @@ export function setDecorator(
   filePath: string,
   decorator: string,
 ): Change {
-  // first get the class node
-  const classDeclaration = findNodes(
-    source,
-    ts.SyntaxKind.ClassDeclaration,
-  );
-  // get the decorator of the class
+  const classDeclaration = findNodes(source, ts.SyntaxKind.ClassDeclaration);
   const _decorator: ts.Decorator = (classDeclaration[0] as ts.ClassDeclaration)
     .decorators[0];
-  // get the init and end position of the content within the decorator call expresion
-  const {
-    pos,
-    end,
-  } = (_decorator.expression as ts.CallExpression).arguments;
-  // return the Change object
+  const argument = (_decorator.expression as ts.CallExpression).arguments;
+  const { pos, end } = argument;
   return new ReplaceChange(
     filePath,
     pos,
     source.getFullText().substring(pos, end),
     decorator,
   );
+}
+
+export function getDecoratorObject(source: ts.SourceFile): string {
+  const expressionDeclaration = findNodes(source, ts.SyntaxKind.VariableDeclarationList);
+  const expression = (expressionDeclaration[0] as ts.VariableDeclarationList)
+    .declarations[0].initializer;
+  return expression.getText();
+}
+
+export function getDecoratorName(source: ts.SourceFile): string {
+  const classDeclaration = findNodes(source, ts.SyntaxKind.ClassDeclaration);
+  const decorator: ts.Decorator = (classDeclaration[0] as ts.ClassDeclaration)
+    .decorators[0];
+  const argument = (decorator.expression as ts.CallExpression).arguments[0].getText();
+  return argument;
+}
+
+export function getDecoratorFileName(
+  source: ts.SourceFile,
+  path: string,
+  decorator: string,
+): string {
+  const importDeclarations = findNodes(source, ts.SyntaxKind.ImportDeclaration);
+  const importDeclaration = importDeclarations.find((importDeclaration) => {
+    const importSections = (importDeclaration as ts.ImportDeclaration).importClause
+      .namedBindings;
+    const importText = (importSections as ts.NamedImports).elements[0].getText();
+    return importText === decorator;
+  });
+  if (importDeclaration) {
+    const importPath = (importDeclaration as ts.ImportDeclaration).moduleSpecifier.getText();
+    return importPath.replace(/'/g, '').replace('./', '');
+  } else {
+    return null;
+  }
+}
+
+export function addAbsolutePath(path: string): string {
+  return `src/app/${path}.ts`;
 }
 
 export function addDependencyToClass(
@@ -680,24 +643,11 @@ export function addContentToMethod(
   methodName: string,
   content: string,
 ) {
-  const classDeclaration = findNodes(
-    source,
-    ts.SyntaxKind.ClassDeclaration,
-  );
+  const classDeclaration = findNodes(source, ts.SyntaxKind.ClassDeclaration);
   const method: ts.Node[] = (classDeclaration[0] as ts.ClassDeclaration).members
-    .filter(
-      (node: ts.Node) =>
-        node.kind === ts.SyntaxKind.MethodDeclaration,
-    )
-    .filter(
-      (method: ts.MethodDeclaration) =>
-        method.name.getText() === methodName,
-    );
-  return new InsertChange(
-    filePath,
-    method[0].getEnd() - 1,
-    `  ${content}\n  `,
-  );
+    .filter((node: ts.Node) => node.kind === ts.SyntaxKind.MethodDeclaration)
+    .filter((method: ts.MethodDeclaration) => method.name.getText() === methodName);
+  return new InsertChange(filePath, method[0].getEnd() - 1, `  ${content}\n  `);
 }
 
 /**
@@ -722,16 +672,11 @@ export function addPathsToRoutingModule(
 ) {
   // Find the first variable that has the :Routes type. We'll assume that such
   // variable is the array of routes.
-  const varStatements = findNodes(
-    source,
-    ts.SyntaxKind.VariableStatement,
-  );
-  const routesArray = varStatements.find(
-    (node: ts.VariableStatement) => {
-      const nodeType = node.declarationList.declarations[0].type.getText();
-      return nodeType === 'Routes';
-    },
-  ) as ts.VariableStatement;
+  const varStatements = findNodes(source, ts.SyntaxKind.VariableStatement);
+  const routesArray = varStatements.find((node: ts.VariableStatement) => {
+    const nodeType = node.declarationList.declarations[0].type.getText();
+    return nodeType === 'Routes';
+  }) as ts.VariableStatement;
 
   // Check if there's already a path defined as "path: '**'"
   // If it does, then don't add the new route
@@ -744,8 +689,7 @@ export function addPathsToRoutingModule(
       const prop = path.properties[j] as ts.PropertyAssignment;
       if (
         prop.name.getText() === 'path' &&
-        (prop.initializer.getText() === "'**'" ||
-          prop.initializer.getText() === "'404'")
+        (prop.initializer.getText() === "'**'" || prop.initializer.getText() === "'404'")
       ) {
         pathExists = true;
       }
@@ -765,9 +709,7 @@ export function addPathsToRoutingModule(
   }
 
   if (pathExists) {
-    throw new Error(
-      `Error updating paths. Path '**' or '404' already exist.`,
-    );
+    throw new Error(`Error updating paths. Path '**' or '404' already exist.`);
   }
   return new InsertChange(filePath, lastPath.getEnd(), toInsert);
 }
