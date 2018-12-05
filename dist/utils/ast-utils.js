@@ -458,10 +458,6 @@ function getDecoratorFileName(source, path, decorator) {
     }
 }
 exports.getDecoratorFileName = getDecoratorFileName;
-function addAbsolutePath(path) {
-    return `src/app/${path}.ts`;
-}
-exports.addAbsolutePath = addAbsolutePath;
 function addDependencyToClass(source, filePath, symbol, symbolType) {
     const constructor = findNodes(source, ts.SyntaxKind.Constructor);
     let children = constructor[0].getChildren();

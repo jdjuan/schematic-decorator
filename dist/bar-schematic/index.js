@@ -5,7 +5,7 @@ const change_1 = require("../utils/change");
 const ast_utils_1 = require("../utils/ast-utils");
 function default_1() {
     return (_tree, _context) => {
-        const allComponents = _recurse(_tree.getDir('src/app'));
+        const allComponents = _recurse(_tree.getDir('src/app'), '.component.ts');
         const changes = [];
         allComponents.forEach((component) => {
             const exportRecorder = _tree.beginUpdate(component.fullPath);
@@ -30,26 +30,26 @@ function replaceDecoratorWithObject(component, _tree) {
     const source = ts.createSourceFile(component.fullPath, sourceText, ts.ScriptTarget.Latest, true);
     const decoratorName = ast_utils_1.getDecoratorName(source);
     const decoratorFileName = ast_utils_1.getDecoratorFileName(source, component.fullPath, decoratorName);
-    // If not already an object
+    // If it is an imported decorator
     if (decoratorFileName) {
         const decoratorFilePath = `${component.path}/${decoratorFileName}.ts`;
-        console.log(decoratorFilePath);
         const decoratorFile = readDecoratorFile(_tree, decoratorFilePath);
         const decoratorObject = ast_utils_1.getDecoratorObject(decoratorFile);
+        console.log(decoratorObject);
         return ast_utils_1.setDecorator(source, component.fullPath, decoratorObject);
     }
     return null;
 }
-function _recurse(dir) {
+function _recurse(dir, endsWith) {
     return [
         ...dir.subfiles
-            .filter((fileName) => fileName.endsWith('.component.ts'))
+            .filter((fileName) => fileName.endsWith(endsWith))
             .map((fileName) => ({
             path: dir.path,
             file: fileName,
             fullPath: `${dir.path}/${fileName}`,
         })),
-        ...[].concat(...dir.subdirs.map((x) => _recurse(dir.dir(x)))),
+        ...[].concat(...dir.subdirs.map((x) => _recurse(dir.dir(x), endsWith))),
     ];
 }
 function readDecoratorFile(_tree, decoratorPath) {

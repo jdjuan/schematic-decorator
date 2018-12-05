@@ -78,7 +78,6 @@ export declare function setDecorator(source: ts.SourceFile, filePath: string, de
 export declare function getDecoratorObject(source: ts.SourceFile): string;
 export declare function getDecoratorName(source: ts.SourceFile): string;
 export declare function getDecoratorFileName(source: ts.SourceFile, path: string, decorator: string): string;
-export declare function addAbsolutePath(path: string): string;
 export declare function addDependencyToClass(source: ts.SourceFile, filePath: string, symbol: string, symbolType: string): NoopChange | InsertChange;
 export declare function addContentToMethod(source: ts.SourceFile, filePath: string, methodName: string, content: string): InsertChange;
 export declare function addPathsToRoutingModule(source: ts.SourceFile, filePath: string, paths: string[]): InsertChange;

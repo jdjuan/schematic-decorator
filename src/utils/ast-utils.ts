@@ -606,10 +606,6 @@ export function getDecoratorFileName(
   }
 }
 
-export function addAbsolutePath(path: string): string {
-  return `src/app/${path}.ts`;
-}
-
 export function addDependencyToClass(
   source: ts.SourceFile,
   filePath: string,

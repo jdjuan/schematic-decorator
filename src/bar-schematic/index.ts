@@ -6,8 +6,6 @@ import {
   SchematicContext,
   Tree
   } from '@angular-devkit/schematics';
-import { fileBuffer } from '@angular-devkit/core/src/virtual-fs/host';
-import { path } from '@angular-devkit/core';
 import {
   getDecoratorFileName,
   getDecoratorName,
@@ -17,7 +15,7 @@ import {
 
 export default function(): Rule {
   return (_tree: Tree, _context: SchematicContext) => {
-    const allComponents = _recurse(_tree.getDir('src/app'));
+    const allComponents = _recurse(_tree.getDir('src/app'), '.component.ts');
     const changes: Change[] = [];
     allComponents.forEach((component) => {
       const exportRecorder = _tree.beginUpdate(component.fullPath);
@@ -53,28 +51,27 @@ function replaceDecoratorWithObject(component: componentPath, _tree: Tree): Chan
     component.fullPath,
     decoratorName,
   );
-  // If not already an object
+  // If it is an imported decorator
   if (decoratorFileName) {
     const decoratorFilePath = `${component.path}/${decoratorFileName}.ts`;
-    console.log(decoratorFilePath);
-
     const decoratorFile = readDecoratorFile(_tree, decoratorFilePath);
     const decoratorObject = getDecoratorObject(decoratorFile);
+    console.log(decoratorObject);
     return setDecorator(source, component.fullPath, decoratorObject);
   }
   return null;
 }
 
-function _recurse(dir: DirEntry): componentPath[] {
+function _recurse(dir: DirEntry, endsWith: string): componentPath[] {
   return [
     ...dir.subfiles
-      .filter((fileName) => fileName.endsWith('.component.ts'))
+      .filter((fileName) => fileName.endsWith(endsWith))
       .map((fileName) => ({
         path: dir.path,
         file: fileName,
         fullPath: `${dir.path}/${fileName}`,
       })),
-    ...[].concat(...dir.subdirs.map((x) => _recurse(dir.dir(x)))),
+    ...[].concat(...dir.subdirs.map((x) => _recurse(dir.dir(x), endsWith))),
   ];
 }
 
