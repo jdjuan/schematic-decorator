@@ -5,8 +5,8 @@ import {
   NoopChange,
   ReplaceChange
   } from './change';
+import { extname, normalize } from '@angular-devkit/core';
 import { insertImport } from './route-utils';
-import { normalize } from '@angular-devkit/core';
 /**
  * @license
  * Copyright Google Inc. All Rights Reserved.
@@ -22,7 +22,11 @@ import { normalize } from '@angular-devkit/core';
  * @param max The maximum number of items to return.
  * @return all nodes of kind, or [] if none is found
  */
-export function findNodes(node: ts.Node, kind: ts.SyntaxKind, max = Infinity): ts.Node[] {
+export function findNodes(
+  node: ts.Node,
+  kind: ts.SyntaxKind,
+  max = Infinity,
+): ts.Node[] {
   if (!node || max == 0) {
     return [];
   }
@@ -212,13 +216,16 @@ export function getDecoratorMetadata(
     ts.SyntaxKind.ImportDeclaration,
   )
     .map((node: ts.ImportDeclaration) => _angularImportsFromNode(node, source))
-    .reduce((acc: { [name: string]: string }, current: { [name: string]: string }) => {
-      for (const key of Object.keys(current)) {
-        acc[key] = current[key];
-      }
+    .reduce(
+      (acc: { [name: string]: string }, current: { [name: string]: string }) => {
+        for (const key of Object.keys(current)) {
+          acc[key] = current[key];
+        }
 
-      return acc;
-    }, {});
+        return acc;
+      },
+      {},
+    );
   return getSourceNodes(source)
     .filter((node) => {
       return (
@@ -316,7 +323,12 @@ export function addSymbolToNgModuleMetadata(
     if (importPath !== null) {
       return [
         new InsertChange(ngModulePath, position, toInsert),
-        insertImport(source, ngModulePath, symbolName.replace(/\..*$/, ''), importPath),
+        insertImport(
+          source,
+          ngModulePath,
+          symbolName.replace(/\..*$/, ''),
+          importPath,
+        ),
       ];
     } else {
       return [new InsertChange(ngModulePath, position, toInsert)];
@@ -388,7 +400,12 @@ export function addSymbolToNgModuleMetadata(
   if (importPath !== null) {
     return [
       new InsertChange(ngModulePath, position, toInsert),
-      insertImport(source, ngModulePath, symbolName.replace(/\..*$/, ''), importPath),
+      insertImport(
+        source,
+        ngModulePath,
+        symbolName.replace(/\..*$/, ''),
+        importPath,
+      ),
     ];
   }
 
@@ -508,9 +525,10 @@ export function isImported(
       if (!imp.importClause) {
         return false;
       }
-      const nodes = findNodes(imp.importClause, ts.SyntaxKind.ImportSpecifier).filter(
-        (n) => n.getText() === classifiedName,
-      );
+      const nodes = findNodes(
+        imp.importClause,
+        ts.SyntaxKind.ImportSpecifier,
+      ).filter((n) => n.getText() === classifiedName);
 
       return nodes.length > 0;
     });
@@ -561,7 +579,11 @@ export function setDecorator(
   const classDeclaration = findNodes(source, ts.SyntaxKind.ClassDeclaration);
   const _decorator: ts.Decorator = (classDeclaration[0] as ts.ClassDeclaration)
     .decorators[0];
-  const argument = (_decorator.expression as ts.CallExpression).arguments;
+
+  const argument = (_decorator.expression as ts.CallExpression).arguments[0];
+  console.log('argument.getText()');
+  console.log(argument.getText());
+
   const { pos, end } = argument;
   return new ReplaceChange(
     filePath,
@@ -571,10 +593,21 @@ export function setDecorator(
   );
 }
 
-export function getDecoratorObject(source: ts.SourceFile): string {
-  const expressionDeclaration = findNodes(source, ts.SyntaxKind.VariableDeclarationList);
-  const expression = (expressionDeclaration[0] as ts.VariableDeclarationList)
-    .declarations[0].initializer;
+export function getDecoratorObject(
+  source: ts.SourceFile,
+  decoratorName: string,
+): string {
+  const expressionDeclaration = findNodes(
+    source,
+    ts.SyntaxKind.VariableDeclarationList,
+  );
+  const decoratorObject = expressionDeclaration.find((node) => {
+    const name = (node as ts.VariableDeclarationList).declarations[0].name.getText();
+    return name === decoratorName;
+  });
+
+  const expression = (decoratorObject as ts.VariableDeclarationList).declarations[0]
+    .initializer;
   return expression.getText();
 }
 
@@ -600,10 +633,62 @@ export function getDecoratorFileName(
   });
   if (importDeclaration) {
     const importPath = (importDeclaration as ts.ImportDeclaration).moduleSpecifier.getText();
-    return importPath.replace(/'/g, '').replace('./', '');
+    return importPath.replace(/'/g, '');
   } else {
     return null;
   }
+}
+
+export function removeBasePathFromDecorator(source: string) {
+  const parseableDecorator = makeParseable(source);
+  // console.log(parseableDecorator);
+  const decorator = JSON.parse(parseableDecorator);
+  decorator.templateUrl = removeBasePath(decorator.templateUrl);
+  decorator.styleUrls[0] = removeBasePath(decorator.styleUrls[0]);
+  const decoratorString = JSON.stringify(decorator);
+  return unFormatString(decoratorString);
+}
+
+function removeBasePath(path: string) {
+  const filePathIndex = path.lastIndexOf('/');
+  return '.' + path.substring(filePathIndex, path.length);
+}
+
+function makeParseable(decorator: string) {
+  decorator = decorator.replace('selector', '"selector"');
+  decorator = decorator.replace('moduleId', '"moduleId"');
+  decorator = decorator.replace('module.id', '"module.id"');
+  decorator = decorator.replace('changeDetection', '"changeDetection"');
+  decorator = decorator.replace(
+    'ChangeDetectionStrategy.OnPush',
+    '"ChangeDetectionStrategy.OnPush"',
+  );
+  decorator = decorator.replace('templateUrl', '"templateUrl"');
+  decorator = decorator.replace('styleUrls', '"styleUrls"');
+  decorator = decorator.replace(/'/g, '"');
+  // if (decorator.indexOf('./') === 0) {
+  //   decorator = decorator.replace(/.\//, '');
+  // }
+
+  if (decorator.match(/, *((\n|\r|\t| )*)*}/g)) {
+    decorator = decorator.replace(/,([^,]*)$/, '$1');
+  }
+  return decorator;
+}
+
+function unFormatString(decorator: string) {
+  decorator = decorator.replace('"selector"', 'selector');
+  decorator = decorator.replace('"moduleId"', 'moduleId');
+  decorator = decorator.replace('"module.id"', 'module.id');
+  decorator = decorator.replace('"templateUrl"', 'templateUrl');
+  decorator = decorator.replace('"styleUrls"', 'styleUrls');
+  decorator = decorator.replace('"changeDetection"', 'changeDetection');
+  decorator = decorator.replace(
+    '"ChangeDetectionStrategy.OnPush"',
+    'ChangeDetectionStrategy.OnPush',
+  );
+  decorator = decorator.replace(/"/g, "'");
+  return decorator;
 }
 
 export function addDependencyToClass(
@@ -685,7 +770,8 @@ export function addPathsToRoutingModule(
       const prop = path.properties[j] as ts.PropertyAssignment;
       if (
         prop.name.getText() === 'path' &&
-        (prop.initializer.getText() === "'**'" || prop.initializer.getText() === "'404'")
+        (prop.initializer.getText() === "'**'" ||
+          prop.initializer.getText() === "'404'")
       ) {
         pathExists = true;
       }

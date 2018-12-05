@@ -421,15 +421,21 @@ function setDecorator(source, filePath, decorator) {
     const classDeclaration = findNodes(source, ts.SyntaxKind.ClassDeclaration);
     const _decorator = classDeclaration[0]
         .decorators[0];
-    const argument = _decorator.expression.arguments;
+    const argument = _decorator.expression.arguments[0];
+    console.log('argument.getText()');
+    console.log(argument.getText());
     const { pos, end } = argument;
     return new change_1.ReplaceChange(filePath, pos, source.getFullText().substring(pos, end), decorator);
 }
 exports.setDecorator = setDecorator;
-function getDecoratorObject(source) {
+function getDecoratorObject(source, decoratorName) {
     const expressionDeclaration = findNodes(source, ts.SyntaxKind.VariableDeclarationList);
-    const expression = expressionDeclaration[0]
-        .declarations[0].initializer;
+    const decoratorObject = expressionDeclaration.find((node) => {
+        const name = node.declarations[0].name.getText();
+        return name === decoratorName;
+    });
+    const expression = decoratorObject.declarations[0]
+        .initializer;
     return expression.getText();
 }
 exports.getDecoratorObject = getDecoratorObject;
@@ -451,13 +457,55 @@ function getDecoratorFileName(source, path, decorator) {
     });
     if (importDeclaration) {
         const importPath = importDeclaration.moduleSpecifier.getText();
-        return importPath.replace(/'/g, '').replace('./', '');
+        return importPath.replace(/'/g, '');
     }
     else {
         return null;
     }
 }
 exports.getDecoratorFileName = getDecoratorFileName;
+function removeBasePathFromDecorator(source) {
+    const parseableDecorator = makeParseable(source);
+    // console.log(parseableDecorator);
+    const decorator = JSON.parse(parseableDecorator);
+    decorator.templateUrl = removeBasePath(decorator.templateUrl);
+    decorator.styleUrls[0] = removeBasePath(decorator.styleUrls[0]);
+    const decoratorString = JSON.stringify(decorator);
+    return unFormatString(decoratorString);
+}
+exports.removeBasePathFromDecorator = removeBasePathFromDecorator;
+function removeBasePath(path) {
+    const filePathIndex = path.lastIndexOf('/');
+    return '.' + path.substring(filePathIndex, path.length);
+}
+function makeParseable(decorator) {
+    decorator = decorator.replace('selector', '"selector"');
+    decorator = decorator.replace('moduleId', '"moduleId"');
+    decorator = decorator.replace('module.id', '"module.id"');
+    decorator = decorator.replace('changeDetection', '"changeDetection"');
+    decorator = decorator.replace('ChangeDetectionStrategy.OnPush', '"ChangeDetectionStrategy.OnPush"');
+    decorator = decorator.replace('templateUrl', '"templateUrl"');
+    decorator = decorator.replace('styleUrls', '"styleUrls"');
+    decorator = decorator.replace(/'/g, '"');
+    // if (decorator.indexOf('./') === 0) {
+    //   decorator = decorator.replace(/.\//, '');
+    // }
+    if (decorator.match(/, *((\n|\r|\t| )*)*}/g)) {
+        decorator = decorator.replace(/,([^,]*)$/, '$1');
+    }
+    return decorator;
+}
+function unFormatString(decorator) {
+    decorator = decorator.replace('"selector"', 'selector');
+    decorator = decorator.replace('"moduleId"', 'moduleId');
+    decorator = decorator.replace('"module.id"', 'module.id');
+    decorator = decorator.replace('"templateUrl"', 'templateUrl');
+    decorator = decorator.replace('"styleUrls"', 'styleUrls');
+    decorator = decorator.replace('"changeDetection"', 'changeDetection');
+    decorator = decorator.replace('"ChangeDetectionStrategy.OnPush"', 'ChangeDetectionStrategy.OnPush');
+    decorator = decorator.replace(/"/g, "'");
+    return decorator;
+}
 function addDependencyToClass(source, filePath, symbol, symbolType) {
     const constructor = findNodes(source, ts.SyntaxKind.Constructor);
     let children = constructor[0].getChildren();
@@ -519,7 +567,8 @@ function addPathsToRoutingModule(source, filePath, paths) {
         for (let j = 0; j < path.properties.length; j++) {
             const prop = path.properties[j];
             if (prop.name.getText() === 'path' &&
-                (prop.initializer.getText() === "'**'" || prop.initializer.getText() === "'404'")) {
+                (prop.initializer.getText() === "'**'" ||
+                    prop.initializer.getText() === "'404'")) {
                 pathExists = true;
             }
         }

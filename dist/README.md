@@ -25,4 +25,4 @@ npm publish
 ```
 
 That's it!
- 
+ "# schematic-decorator" 
