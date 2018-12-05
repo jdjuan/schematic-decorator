@@ -581,8 +581,6 @@ export function setDecorator(
     .decorators[0];
 
   const argument = (_decorator.expression as ts.CallExpression).arguments[0];
-  console.log('argument.getText()');
-  console.log(argument.getText());
 
   const { pos, end } = argument;
   return new ReplaceChange(

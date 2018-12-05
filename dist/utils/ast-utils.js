@@ -422,8 +422,6 @@ function setDecorator(source, filePath, decorator) {
     const _decorator = classDeclaration[0]
         .decorators[0];
     const argument = _decorator.expression.arguments[0];
-    console.log('argument.getText()');
-    console.log(argument.getText());
     const { pos, end } = argument;
     return new change_1.ReplaceChange(filePath, pos, source.getFullText().substring(pos, end), decorator);
 }
