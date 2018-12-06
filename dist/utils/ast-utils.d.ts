@@ -77,7 +77,7 @@ export declare function addFunctionToClass(source: ts.SourceFile, filePath: stri
 export declare function setDecorator(source: ts.SourceFile, filePath: string, decorator: string): Change;
 export declare function getDecoratorObject(source: ts.SourceFile, decoratorName: string): string;
 export declare function getDecoratorName(source: ts.SourceFile): string;
-export declare function getDecoratorFileName(source: ts.SourceFile, path: string, decorator: string): string;
+export declare function getDecoratorImportPath(source: ts.SourceFile, decorator: string): string;
 export declare function removeBasePathFromDecorator(source: string): string;
 export declare function addDependencyToClass(source: ts.SourceFile, filePath: string, symbol: string, symbolType: string): NoopChange | InsertChange;
 export declare function addContentToMethod(source: ts.SourceFile, filePath: string, methodName: string, content: string): InsertChange;

@@ -1,10 +1,5 @@
 import * as ts from 'typescript';
-import {
-  Change,
-  InsertChange,
-  NoopChange,
-  ReplaceChange
-  } from './change';
+import { Change, InsertChange, NoopChange, ReplaceChange } from './change';
 import { extname, normalize } from '@angular-devkit/core';
 import { insertImport } from './route-utils';
 /**
@@ -22,11 +17,7 @@ import { insertImport } from './route-utils';
  * @param max The maximum number of items to return.
  * @return all nodes of kind, or [] if none is found
  */
-export function findNodes(
-  node: ts.Node,
-  kind: ts.SyntaxKind,
-  max = Infinity,
-): ts.Node[] {
+export function findNodes(node: ts.Node, kind: ts.SyntaxKind, max = Infinity): ts.Node[] {
   if (!node || max == 0) {
     return [];
   }
@@ -79,7 +70,7 @@ export function getSourceNodes(sourceFile: ts.SourceFile): ts.Node[] {
 export function findNode(
   node: ts.Node,
   kind: ts.SyntaxKind,
-  text: string,
+  text: string
 ): ts.Node | null {
   if (node.kind === kind && node.getText() === text) {
     // throw new Error(node.getText());
@@ -120,7 +111,7 @@ export function insertAfterLastOccurrence(
   toInsert: string,
   file: string,
   fallbackPos: number,
-  syntaxKind?: ts.SyntaxKind,
+  syntaxKind?: ts.SyntaxKind
 ): Change {
   let lastItem = nodes.sort(nodesByPosition).pop();
   if (!lastItem) {
@@ -133,7 +124,7 @@ export function insertAfterLastOccurrence(
   }
   if (!lastItem && fallbackPos == undefined) {
     throw new Error(
-      `tried to insert ${toInsert} as first occurence with no fallback position`,
+      `tried to insert ${toInsert} as first occurence with no fallback position`
     );
   }
   const lastItemPosition: number = lastItem ? lastItem.end : fallbackPos;
@@ -143,7 +134,7 @@ export function insertAfterLastOccurrence(
 
 export function getContentOfKeyLiteral(
   _source: ts.SourceFile,
-  node: ts.Node,
+  node: ts.Node
 ): string | null {
   if (node.kind == ts.SyntaxKind.Identifier) {
     return (node as ts.Identifier).text;
@@ -156,7 +147,7 @@ export function getContentOfKeyLiteral(
 
 function _angularImportsFromNode(
   node: ts.ImportDeclaration,
-  _sourceFile: ts.SourceFile,
+  _sourceFile: ts.SourceFile
 ): { [name: string]: string } {
   const ms = node.moduleSpecifier;
   let modulePath: string;
@@ -181,7 +172,7 @@ function _angularImportsFromNode(
       if (nb.kind == ts.SyntaxKind.NamespaceImport) {
         // This is of the form `import * as name from 'path'`. Return `name.`.
         return {
-          [(nb as ts.NamespaceImport).name.text + '.']: modulePath,
+          [(nb as ts.NamespaceImport).name.text + '.']: modulePath
         };
       } else {
         // This is of the form `import {a,b,c} from 'path'`
@@ -189,7 +180,7 @@ function _angularImportsFromNode(
 
         return namedImports.elements
           .map((is: ts.ImportSpecifier) =>
-            is.propertyName ? is.propertyName.text : is.name.text,
+            is.propertyName ? is.propertyName.text : is.name.text
           )
           .reduce((acc: { [name: string]: string }, curr: string) => {
             acc[curr] = modulePath;
@@ -209,23 +200,20 @@ function _angularImportsFromNode(
 export function getDecoratorMetadata(
   source: ts.SourceFile,
   identifier: string,
-  module: string,
+  module: string
 ): ts.Node[] {
   const angularImports: { [name: string]: string } = findNodes(
     source,
-    ts.SyntaxKind.ImportDeclaration,
+    ts.SyntaxKind.ImportDeclaration
   )
     .map((node: ts.ImportDeclaration) => _angularImportsFromNode(node, source))
-    .reduce(
-      (acc: { [name: string]: string }, current: { [name: string]: string }) => {
-        for (const key of Object.keys(current)) {
-          acc[key] = current[key];
-        }
+    .reduce((acc: { [name: string]: string }, current: { [name: string]: string }) => {
+      for (const key of Object.keys(current)) {
+        acc[key] = current[key];
+      }
 
-        return acc;
-      },
-      {},
-    );
+      return acc;
+    }, {});
   return getSourceNodes(source)
     .filter((node) => {
       return (
@@ -261,7 +249,7 @@ export function getDecoratorMetadata(
     .filter(
       (expr) =>
         expr.arguments[0] &&
-        expr.arguments[0].kind == ts.SyntaxKind.ObjectLiteralExpression,
+        expr.arguments[0].kind == ts.SyntaxKind.ObjectLiteralExpression
     )
     .map((expr) => expr.arguments[0] as ts.ObjectLiteralExpression);
 }
@@ -271,7 +259,7 @@ export function addSymbolToNgModuleMetadata(
   ngModulePath: string,
   metadataField: string,
   symbolName: string,
-  importPath: string | null = null,
+  importPath: string | null = null
 ): Change[] {
   const nodes = getDecoratorMetadata(source, 'NgModule', '@angular/core');
   let node: any = nodes[0]; // tslint:disable-line:no-any
@@ -323,12 +311,7 @@ export function addSymbolToNgModuleMetadata(
     if (importPath !== null) {
       return [
         new InsertChange(ngModulePath, position, toInsert),
-        insertImport(
-          source,
-          ngModulePath,
-          symbolName.replace(/\..*$/, ''),
-          importPath,
-        ),
+        insertImport(source, ngModulePath, symbolName.replace(/\..*$/, ''), importPath)
       ];
     } else {
       return [new InsertChange(ngModulePath, position, toInsert)];
@@ -400,12 +383,7 @@ export function addSymbolToNgModuleMetadata(
   if (importPath !== null) {
     return [
       new InsertChange(ngModulePath, position, toInsert),
-      insertImport(
-        source,
-        ngModulePath,
-        symbolName.replace(/\..*$/, ''),
-        importPath,
-      ),
+      insertImport(source, ngModulePath, symbolName.replace(/\..*$/, ''), importPath)
     ];
   }
 
@@ -420,14 +398,14 @@ export function addDeclarationToModule(
   source: ts.SourceFile,
   modulePath: string,
   classifiedName: string,
-  importPath: string,
+  importPath: string
 ): Change[] {
   return addSymbolToNgModuleMetadata(
     source,
     modulePath,
     'declarations',
     classifiedName,
-    importPath,
+    importPath
   );
 }
 
@@ -438,14 +416,14 @@ export function addImportToModule(
   source: ts.SourceFile,
   modulePath: string,
   classifiedName: string,
-  importPath: string,
+  importPath: string
 ): Change[] {
   return addSymbolToNgModuleMetadata(
     source,
     modulePath,
     'imports',
     classifiedName,
-    importPath,
+    importPath
   );
 }
 
@@ -456,14 +434,14 @@ export function addProviderToModule(
   source: ts.SourceFile,
   modulePath: string,
   classifiedName: string,
-  importPath: string,
+  importPath: string
 ): Change[] {
   return addSymbolToNgModuleMetadata(
     source,
     modulePath,
     'providers',
     classifiedName,
-    importPath,
+    importPath
   );
 }
 
@@ -474,14 +452,14 @@ export function addExportToModule(
   source: ts.SourceFile,
   modulePath: string,
   classifiedName: string,
-  importPath: string,
+  importPath: string
 ): Change[] {
   return addSymbolToNgModuleMetadata(
     source,
     modulePath,
     'exports',
     classifiedName,
-    importPath,
+    importPath
   );
 }
 
@@ -492,14 +470,14 @@ export function addBootstrapToModule(
   source: ts.SourceFile,
   modulePath: string,
   classifiedName: string,
-  importPath: string,
+  importPath: string
 ): Change[] {
   return addSymbolToNgModuleMetadata(
     source,
     modulePath,
     'bootstrap',
     classifiedName,
-    importPath,
+    importPath
   );
 }
 
@@ -509,14 +487,14 @@ export function addBootstrapToModule(
 export function isImported(
   source: ts.SourceFile,
   classifiedName: string,
-  importPath: string,
+  importPath: string
 ): boolean {
   const allNodes = getSourceNodes(source);
   const matchingNodes = allNodes
     .filter((node) => node.kind === ts.SyntaxKind.ImportDeclaration)
     .filter(
       (imp: ts.ImportDeclaration) =>
-        imp.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral,
+        imp.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral
     )
     .filter((imp: ts.ImportDeclaration) => {
       return (<ts.StringLiteral>imp.moduleSpecifier).text === importPath;
@@ -525,10 +503,9 @@ export function isImported(
       if (!imp.importClause) {
         return false;
       }
-      const nodes = findNodes(
-        imp.importClause,
-        ts.SyntaxKind.ImportSpecifier,
-      ).filter((n) => n.getText() === classifiedName);
+      const nodes = findNodes(imp.importClause, ts.SyntaxKind.ImportSpecifier).filter(
+        (n) => n.getText() === classifiedName
+      );
 
       return nodes.length > 0;
     });
@@ -550,7 +527,7 @@ export function addPropertyToComponent(
   symbol: string,
   type: string,
   value: string = undefined,
-  isPrivate: boolean = false,
+  isPrivate: boolean = false
 ): Change {
   const constructor = findNodes(source, ts.SyntaxKind.ConstructorKeyword);
   let declaration = `\n\n ${isPrivate ? 'private' : ''} ${symbol}: ${type}`;
@@ -561,7 +538,7 @@ export function addPropertyToComponent(
 export function addFunctionToClass(
   source: ts.SourceFile,
   filePath: string,
-  fnBody: string,
+  fnBody: string
 ): Change {
   const classDeclaration = findNodes(source, ts.SyntaxKind.ClassDeclaration);
   return new InsertChange(filePath, classDeclaration[0].end - 1, fnBody);
@@ -574,7 +551,7 @@ export function addFunctionToClass(
 export function setDecorator(
   source: ts.SourceFile,
   filePath: string,
-  decorator: string,
+  decorator: string
 ): Change {
   const classDeclaration = findNodes(source, ts.SyntaxKind.ClassDeclaration);
   const _decorator: ts.Decorator = (classDeclaration[0] as ts.ClassDeclaration)
@@ -587,18 +564,12 @@ export function setDecorator(
     filePath,
     pos,
     source.getFullText().substring(pos, end),
-    decorator,
+    decorator
   );
 }
 
-export function getDecoratorObject(
-  source: ts.SourceFile,
-  decoratorName: string,
-): string {
-  const expressionDeclaration = findNodes(
-    source,
-    ts.SyntaxKind.VariableDeclarationList,
-  );
+export function getDecoratorObject(source: ts.SourceFile, decoratorName: string): string {
+  const expressionDeclaration = findNodes(source, ts.SyntaxKind.VariableDeclarationList);
   const decoratorObject = expressionDeclaration.find((node) => {
     const name = (node as ts.VariableDeclarationList).declarations[0].name.getText();
     return name === decoratorName;
@@ -610,25 +581,36 @@ export function getDecoratorObject(
 }
 
 export function getDecoratorName(source: ts.SourceFile): string {
-  const classDeclaration = findNodes(source, ts.SyntaxKind.ClassDeclaration);
-  const decorator: ts.Decorator = (classDeclaration[0] as ts.ClassDeclaration)
-    .decorators[0];
-  const argument = (decorator.expression as ts.CallExpression).arguments[0].getText();
-  return argument;
+  const classDeclaration = findNodes(source, ts.SyntaxKind.ClassDeclaration)[0];
+  if (classDeclaration && classDeclaration.decorators) {
+    const decorator: ts.Decorator = (classDeclaration as ts.ClassDeclaration)
+      .decorators[0];
+    const argument = (decorator.expression as ts.CallExpression).arguments[0].getText();
+    return argument;
+  }
+  return null;
 }
 
-export function getDecoratorFileName(
-  source: ts.SourceFile,
-  path: string,
-  decorator: string,
-): string {
+export function getDecoratorImportPath(source: ts.SourceFile, decorator: string): string {
   const importDeclarations = findNodes(source, ts.SyntaxKind.ImportDeclaration);
-  const importDeclaration = importDeclarations.find((importDeclaration) => {
-    const importSections = (importDeclaration as ts.ImportDeclaration).importClause
-      .namedBindings;
-    const importText = (importSections as ts.NamedImports).elements[0].getText();
-    return importText === decorator;
-  });
+  const importDeclaration = importDeclarations.find(
+    (importDeclaration: ts.ImportDeclaration) => {
+      if (
+        importDeclaration.importClause &&
+        importDeclaration.importClause.namedBindings
+      ) {
+        const importSections = importDeclaration.importClause
+          .namedBindings as ts.NamedImports;
+        if (importSections.elements) {
+          return importSections.elements[0].getText() === decorator;
+        } else {
+          return null;
+        }
+      } else {
+        return null;
+      }
+    }
+  );
   if (importDeclaration) {
     const importPath = (importDeclaration as ts.ImportDeclaration).moduleSpecifier.getText();
     return importPath.replace(/'/g, '');
@@ -638,13 +620,21 @@ export function getDecoratorFileName(
 }
 
 export function removeBasePathFromDecorator(source: string) {
-  const parseableDecorator = makeParseable(source);
-  // console.log(parseableDecorator);
-  const decorator = JSON.parse(parseableDecorator);
-  decorator.templateUrl = removeBasePath(decorator.templateUrl);
-  decorator.styleUrls[0] = removeBasePath(decorator.styleUrls[0]);
-  const decoratorString = JSON.stringify(decorator);
-  return unFormatString(decoratorString);
+  if (source.includes('templateUrl') && source.includes('styleUrls')) {
+    const parseableDecorator = makeParseable(source);
+    // console.log('parseableDecorator');
+    // console.log(parseableDecorator);
+
+    const decorator = JSON.parse(parseableDecorator);
+    decorator.templateUrl = removeBasePath(decorator.templateUrl);
+    decorator.styleUrls[0] = removeBasePath(decorator.styleUrls[0]);
+    if (decorator.animations) {
+      delete decorator.animations;
+    }
+    const decoratorString = JSON.stringify(decorator);
+    return unFormatString(decoratorString);
+  }
+  return source;
 }
 
 function removeBasePath(path: string) {
@@ -659,18 +649,29 @@ function makeParseable(decorator: string) {
   decorator = decorator.replace('changeDetection', '"changeDetection"');
   decorator = decorator.replace(
     'ChangeDetectionStrategy.OnPush',
-    '"ChangeDetectionStrategy.OnPush"',
+    '"ChangeDetectionStrategy.OnPush"'
   );
   decorator = decorator.replace('templateUrl', '"templateUrl"');
   decorator = decorator.replace('styleUrls', '"styleUrls"');
-  decorator = decorator.replace(/'/g, '"');
-  // if (decorator.indexOf('./') === 0) {
-  //   decorator = decorator.replace(/.\//, '');
-  // }
+  decorator = decorator.replace('providers', '"providers"');
+  if (decorator.includes('providers')) {
+    let [firstPart, secondPart] = decorator.split('providers');
+    secondPart = secondPart.replace('[', "'[");
+    secondPart = secondPart.replace(']', "]'");
+    decorator = `${firstPart}providers${secondPart}`;
+  }
 
+  decorator = decorator.replace('animations', '"animations"');
+  if (decorator.includes('animations')) {
+    let [firstPart, secondPart] = decorator.split('animations');
+    secondPart = secondPart.replace('[', "'[");
+    secondPart = secondPart.replace(']', "]'");
+    decorator = `${firstPart}animations${secondPart}`;
+  }
   if (decorator.match(/, *((\n|\r|\t| )*)*}/g)) {
     decorator = decorator.replace(/,([^,]*)$/, '$1');
   }
+  decorator = decorator.replace(/'/g, '"');
   return decorator;
 }
 
@@ -683,8 +684,22 @@ function unFormatString(decorator: string) {
   decorator = decorator.replace('"changeDetection"', 'changeDetection');
   decorator = decorator.replace(
     '"ChangeDetectionStrategy.OnPush"',
-    'ChangeDetectionStrategy.OnPush',
+    'ChangeDetectionStrategy.OnPush'
   );
+  decorator = decorator.replace('"providers"', 'providers');
+  if (decorator.includes('providers')) {
+    let [firstPart, secondPart] = decorator.split('providers');
+    secondPart = secondPart.replace('"[', '[');
+    secondPart = secondPart.replace(']"', ']');
+    decorator = `${firstPart}providers${secondPart}`;
+  }
+  decorator = decorator.replace('"animations"', 'animations');
+  if (decorator.includes('animations')) {
+    let [firstPart, secondPart] = decorator.split('animations');
+    secondPart = secondPart.replace('"[', '[');
+    secondPart = secondPart.replace(']"', ']');
+    decorator = `${firstPart}animations${secondPart}`;
+  }
   decorator = decorator.replace(/"/g, "'");
   return decorator;
 }
@@ -693,7 +708,7 @@ export function addDependencyToClass(
   source: ts.SourceFile,
   filePath: string,
   symbol: string,
-  symbolType: string,
+  symbolType: string
 ) {
   const constructor = findNodes(source, ts.SyntaxKind.Constructor);
   let children = constructor[0].getChildren();
@@ -720,7 +735,7 @@ export function addContentToMethod(
   source: ts.SourceFile,
   filePath: string,
   methodName: string,
-  content: string,
+  content: string
 ) {
   const classDeclaration = findNodes(source, ts.SyntaxKind.ClassDeclaration);
   const method: ts.Node[] = (classDeclaration[0] as ts.ClassDeclaration).members
@@ -747,7 +762,7 @@ function _getNumDependencies(list: ts.Node) {
 export function addPathsToRoutingModule(
   source: ts.SourceFile,
   filePath: string,
-  paths: string[],
+  paths: string[]
 ) {
   // Find the first variable that has the :Routes type. We'll assume that such
   // variable is the array of routes.
@@ -768,8 +783,7 @@ export function addPathsToRoutingModule(
       const prop = path.properties[j] as ts.PropertyAssignment;
       if (
         prop.name.getText() === 'path' &&
-        (prop.initializer.getText() === "'**'" ||
-          prop.initializer.getText() === "'404'")
+        (prop.initializer.getText() === "'**'" || prop.initializer.getText() === "'404'")
       ) {
         pathExists = true;
       }

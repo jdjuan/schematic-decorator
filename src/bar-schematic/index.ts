@@ -1,103 +1,110 @@
 import * as ts from 'typescript';
 import { Change, InsertChange, ReplaceChange } from '../utils/change';
+import { DirEntry, Rule, SchematicContext, Tree } from '@angular-devkit/schematics';
 import {
-  DirEntry,
-  Rule,
-  SchematicContext,
-  Tree
-  } from '@angular-devkit/schematics';
-import { insertImport } from '../utils/route-utils';
-import {
-  getDecoratorFileName,
+  getDecoratorImportPath,
   getDecoratorName,
   getDecoratorObject,
-  setDecorator,
-  removeBasePathFromDecorator,
   isImported,
-} from '../utils/ast-utils';
+  removeBasePathFromDecorator,
+  setDecorator
+  } from '../utils/ast-utils';
+import { insertImport } from '../utils/route-utils';
+import { NEW_DECORATOR } from './fn-body';
 
 export default function(): Rule {
   return (_tree: Tree, _context: SchematicContext) => {
-    const allComponents = _recurse(
-      _tree.getDir('src/app'),
-      // _tree.getDir('app/base/movements/movements-module/components/movements'),
-      '.component.ts',
-    );
-    const changes: Change[] = [];
-    allComponents.forEach((component) => {
-      const exportRecorder = _tree.beginUpdate(component.fullPath);
-      changes.push(...replaceDecoratorWithObject(component, _tree));
-      for (const change of changes) {
-        if (change instanceof InsertChange) {
-          exportRecorder.insertLeft(change.pos, change.toAdd);
-        }
-        if (change instanceof ReplaceChange) {
-          exportRecorder.remove(change.pos, change.oldText.length);
-          exportRecorder.insertLeft(change.pos, change.newText);
-        }
-      }
-      _tree.commitUpdate(exportRecorder);
-    });
-
+    // const route = 'src/app';
+    // const route = 'app/base/dashboard/dashboard-module/components/menu';
+    // const route =
+    //   'app/base/approval/approval-module/components/no-change-currency/no-change-currency-confirmation';
+    const route = 'app/base';
+    const allComponents = _recurse(_tree.getDir(route), '.component.ts');
+    const replaceComponentDecorator = (component) => replaceDecorator(component, _tree);
+    allComponents.forEach(replaceComponentDecorator);
     return _tree;
   };
 }
 
-function replaceDecoratorWithObject(
-  component: componentPath,
-  _tree: Tree,
-): Change[] {
+function replaceDecorator(component, _tree) {
+  const exportRecorder = _tree.beginUpdate(component.fullPath);
+  let changes: Change[] = replaceDecoratorWithObject(component, _tree);
+  if (changes) {
+    for (const change of changes) {
+      if (change instanceof InsertChange) {
+        exportRecorder.insertLeft(change.pos, change.toAdd);
+      }
+      if (change instanceof ReplaceChange) {
+        exportRecorder.remove(change.pos, change.oldText.length);
+        exportRecorder.insertLeft(change.pos, change.newText);
+      }
+    }
+  }
+  _tree.commitUpdate(exportRecorder);
+}
+
+function replaceDecoratorWithObject(component: componentPath, _tree: Tree): Change[] {
+  console.log(component);
   const sourceText = _tree.read(component.fullPath)!.toString('utf-8');
   const source = ts.createSourceFile(
     component.fullPath,
     sourceText,
     ts.ScriptTarget.Latest,
-    true,
+    true
   );
-
   const decoratorName = getDecoratorName(source);
   // console.log('decoratorName');
   // console.log(decoratorName);
 
-  const decoratorFileName = getDecoratorFileName(
-    source,
-    component.fullPath,
-    decoratorName,
-  );
-  // console.log('decoratorFileName');
-  // console.log(decoratorFileName);
-
-  // If it is an imported decorator
-  if (decoratorFileName) {
-    // console.log('component.path');
-    // console.log(component.path);
-    // console.log('decoratorFileName');
-    // console.log(decoratorFileName);
-    const decoratorFilePath = `${component.path}/${decoratorFileName}.ts`;
-    // console.log('decoratorFilePath');
-    // console.log(decoratorFilePath);
-
-    const decoratorFile = readDecoratorFile(_tree, decoratorFilePath);
-    const decoratorObject = getDecoratorObject(decoratorFile, decoratorName);
-    // console.log('decoratorObject');
-    // console.log(decoratorObject);
-    const formattedDecorator = removeBasePathFromDecorator(decoratorObject);
-    // console.log('formattedDecorator');
-    // console.log(formattedDecorator);
-    const changes: Change[] = [];
-    changes.push(setDecorator(source, component.fullPath, formattedDecorator));
-    if (!isImported(source, 'ChangeDetectionStrategy', '@angular/core')) {
-      const importChangeDetection = insertImport(
-        source,
-        component.fullPath,
-        'ChangeDetectionStrategy',
-        '@angular/core',
-      );
-      changes.push(importChangeDetection);
+  // if the component actually has a decorator
+  if (decoratorName) {
+    const decoratorPath = getDecoratorImportPath(source, decoratorName);
+    // console.log('decoratorPath');
+    // console.log(decoratorPath);
+    // If it is an imported decorator
+    if (decoratorPath) {
+      // console.log('decoratorPath');
+      // console.log(decoratorPath);
+      const formattedDecoratorPath = formatAbsolutePath(decoratorPath, component);
+      const decoratorFile = readDecoratorFile(_tree, formattedDecoratorPath);
+      const decoratorObject = getDecoratorObject(decoratorFile, decoratorName);
+      const decorator = removeBasePathFromDecorator(decoratorObject);
+      const changes: Change[] = [];
+      changes.push(setDecorator(source, component.fullPath, decorator));
+      changes.push(addChangeDetectionImport(source, component));
+      return changes;
     }
-    return changes;
+    return [];
   }
-  return [];
+}
+
+function formatAbsolutePath(
+  decoratorImportPath: string,
+  component: componentPath
+): string {
+  let decoratorFilePath = '';
+  if (decoratorImportPath.startsWith('~')) {
+    const absolutePath = decoratorImportPath.substring(1, decoratorImportPath.length);
+    decoratorFilePath = `app/${absolutePath}.ts`;
+  } else {
+    decoratorFilePath = `${component.path}/${decoratorImportPath}.ts`;
+  }
+  return decoratorFilePath;
+}
+
+function addChangeDetectionImport(
+  source: ts.SourceFile,
+  component: componentPath
+): Change {
+  if (!isImported(source, 'ChangeDetectionStrategy', '@angular/core')) {
+    return insertImport(
+      source,
+      component.fullPath,
+      'ChangeDetectionStrategy',
+      '@angular/core'
+    );
+  }
+  return null;
 }
 
 function _recurse(dir: DirEntry, endsWith: string): componentPath[] {
@@ -107,9 +114,9 @@ function _recurse(dir: DirEntry, endsWith: string): componentPath[] {
       .map((fileName) => ({
         path: dir.path,
         file: fileName,
-        fullPath: `${dir.path}/${fileName}`,
+        fullPath: `${dir.path}/${fileName}`
       })),
-    ...[].concat(...dir.subdirs.map((x) => _recurse(dir.dir(x), endsWith))),
+    ...[].concat(...dir.subdirs.map((x) => _recurse(dir.dir(x), endsWith)))
   ];
 }
 
@@ -119,7 +126,7 @@ function readDecoratorFile(_tree: Tree, decoratorPath: string) {
     decoratorPath,
     metaDecoratorSourceText,
     ts.ScriptTarget.Latest,
-    true,
+    true
   );
   return metaDecoratorSource;
 }

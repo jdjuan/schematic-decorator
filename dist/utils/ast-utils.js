@@ -146,7 +146,7 @@ function _angularImportsFromNode(node, _sourceFile) {
             if (nb.kind == ts.SyntaxKind.NamespaceImport) {
                 // This is of the form `import * as name from 'path'`. Return `name.`.
                 return {
-                    [nb.name.text + '.']: modulePath,
+                    [nb.name.text + '.']: modulePath
                 };
             }
             else {
@@ -257,7 +257,7 @@ function addSymbolToNgModuleMetadata(source, ngModulePath, metadataField, symbol
         if (importPath !== null) {
             return [
                 new change_1.InsertChange(ngModulePath, position, toInsert),
-                route_utils_1.insertImport(source, ngModulePath, symbolName.replace(/\..*$/, ''), importPath),
+                route_utils_1.insertImport(source, ngModulePath, symbolName.replace(/\..*$/, ''), importPath)
             ];
         }
         else {
@@ -330,7 +330,7 @@ function addSymbolToNgModuleMetadata(source, ngModulePath, metadataField, symbol
     if (importPath !== null) {
         return [
             new change_1.InsertChange(ngModulePath, position, toInsert),
-            route_utils_1.insertImport(source, ngModulePath, symbolName.replace(/\..*$/, ''), importPath),
+            route_utils_1.insertImport(source, ngModulePath, symbolName.replace(/\..*$/, ''), importPath)
         ];
     }
     return [new change_1.InsertChange(ngModulePath, position, toInsert)];
@@ -438,20 +438,33 @@ function getDecoratorObject(source, decoratorName) {
 }
 exports.getDecoratorObject = getDecoratorObject;
 function getDecoratorName(source) {
-    const classDeclaration = findNodes(source, ts.SyntaxKind.ClassDeclaration);
-    const decorator = classDeclaration[0]
-        .decorators[0];
-    const argument = decorator.expression.arguments[0].getText();
-    return argument;
+    const classDeclaration = findNodes(source, ts.SyntaxKind.ClassDeclaration)[0];
+    if (classDeclaration && classDeclaration.decorators) {
+        const decorator = classDeclaration
+            .decorators[0];
+        const argument = decorator.expression.arguments[0].getText();
+        return argument;
+    }
+    return null;
 }
 exports.getDecoratorName = getDecoratorName;
-function getDecoratorFileName(source, path, decorator) {
+function getDecoratorImportPath(source, decorator) {
     const importDeclarations = findNodes(source, ts.SyntaxKind.ImportDeclaration);
     const importDeclaration = importDeclarations.find((importDeclaration) => {
-        const importSections = importDeclaration.importClause
-            .namedBindings;
-        const importText = importSections.elements[0].getText();
-        return importText === decorator;
+        if (importDeclaration.importClause &&
+            importDeclaration.importClause.namedBindings) {
+            const importSections = importDeclaration.importClause
+                .namedBindings;
+            if (importSections.elements) {
+                return importSections.elements[0].getText() === decorator;
+            }
+            else {
+                return null;
+            }
+        }
+        else {
+            return null;
+        }
     });
     if (importDeclaration) {
         const importPath = importDeclaration.moduleSpecifier.getText();
@@ -461,15 +474,22 @@ function getDecoratorFileName(source, path, decorator) {
         return null;
     }
 }
-exports.getDecoratorFileName = getDecoratorFileName;
+exports.getDecoratorImportPath = getDecoratorImportPath;
 function removeBasePathFromDecorator(source) {
-    const parseableDecorator = makeParseable(source);
-    // console.log(parseableDecorator);
-    const decorator = JSON.parse(parseableDecorator);
-    decorator.templateUrl = removeBasePath(decorator.templateUrl);
-    decorator.styleUrls[0] = removeBasePath(decorator.styleUrls[0]);
-    const decoratorString = JSON.stringify(decorator);
-    return unFormatString(decoratorString);
+    if (source.includes('templateUrl') && source.includes('styleUrls')) {
+        const parseableDecorator = makeParseable(source);
+        // console.log('parseableDecorator');
+        // console.log(parseableDecorator);
+        const decorator = JSON.parse(parseableDecorator);
+        decorator.templateUrl = removeBasePath(decorator.templateUrl);
+        decorator.styleUrls[0] = removeBasePath(decorator.styleUrls[0]);
+        if (decorator.animations) {
+            delete decorator.animations;
+        }
+        const decoratorString = JSON.stringify(decorator);
+        return unFormatString(decoratorString);
+    }
+    return source;
 }
 exports.removeBasePathFromDecorator = removeBasePathFromDecorator;
 function removeBasePath(path) {
@@ -484,13 +504,24 @@ function makeParseable(decorator) {
     decorator = decorator.replace('ChangeDetectionStrategy.OnPush', '"ChangeDetectionStrategy.OnPush"');
     decorator = decorator.replace('templateUrl', '"templateUrl"');
     decorator = decorator.replace('styleUrls', '"styleUrls"');
-    decorator = decorator.replace(/'/g, '"');
-    // if (decorator.indexOf('./') === 0) {
-    //   decorator = decorator.replace(/.\//, '');
-    // }
+    decorator = decorator.replace('providers', '"providers"');
+    if (decorator.includes('providers')) {
+        let [firstPart, secondPart] = decorator.split('providers');
+        secondPart = secondPart.replace('[', "'[");
+        secondPart = secondPart.replace(']', "]'");
+        decorator = `${firstPart}providers${secondPart}`;
+    }
+    decorator = decorator.replace('animations', '"animations"');
+    if (decorator.includes('animations')) {
+        let [firstPart, secondPart] = decorator.split('animations');
+        secondPart = secondPart.replace('[', "'[");
+        secondPart = secondPart.replace(']', "]'");
+        decorator = `${firstPart}animations${secondPart}`;
+    }
     if (decorator.match(/, *((\n|\r|\t| )*)*}/g)) {
         decorator = decorator.replace(/,([^,]*)$/, '$1');
     }
+    decorator = decorator.replace(/'/g, '"');
     return decorator;
 }
 function unFormatString(decorator) {
@@ -501,6 +532,20 @@ function unFormatString(decorator) {
     decorator = decorator.replace('"styleUrls"', 'styleUrls');
     decorator = decorator.replace('"changeDetection"', 'changeDetection');
     decorator = decorator.replace('"ChangeDetectionStrategy.OnPush"', 'ChangeDetectionStrategy.OnPush');
+    decorator = decorator.replace('"providers"', 'providers');
+    if (decorator.includes('providers')) {
+        let [firstPart, secondPart] = decorator.split('providers');
+        secondPart = secondPart.replace('"[', '[');
+        secondPart = secondPart.replace(']"', ']');
+        decorator = `${firstPart}providers${secondPart}`;
+    }
+    decorator = decorator.replace('"animations"', 'animations');
+    if (decorator.includes('animations')) {
+        let [firstPart, secondPart] = decorator.split('animations');
+        secondPart = secondPart.replace('"[', '[');
+        secondPart = secondPart.replace(']"', ']');
+        decorator = `${firstPart}animations${secondPart}`;
+    }
     decorator = decorator.replace(/"/g, "'");
     return decorator;
 }
@@ -565,8 +610,7 @@ function addPathsToRoutingModule(source, filePath, paths) {
         for (let j = 0; j < path.properties.length; j++) {
             const prop = path.properties[j];
             if (prop.name.getText() === 'path' &&
-                (prop.initializer.getText() === "'**'" ||
-                    prop.initializer.getText() === "'404'")) {
+                (prop.initializer.getText() === "'**'" || prop.initializer.getText() === "'404'")) {
                 pathExists = true;
             }
         }
