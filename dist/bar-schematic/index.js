@@ -6,10 +6,6 @@ const ast_utils_1 = require("../utils/ast-utils");
 const route_utils_1 = require("../utils/route-utils");
 function default_1() {
     return (_tree, _context) => {
-        // const route = 'src/app';
-        // const route = 'app/base/dashboard/dashboard-module/components/menu';
-        // const route =
-        //   'app/base/approval/approval-module/components/no-change-currency/no-change-currency-confirmation';
         const route = 'app/base';
         const allComponents = _recurse(_tree.getDir(route), '.component.ts');
         const replaceComponentDecorator = (component) => replaceDecorator(component, _tree);
@@ -35,21 +31,14 @@ function replaceDecorator(component, _tree) {
     _tree.commitUpdate(exportRecorder);
 }
 function replaceDecoratorWithObject(component, _tree) {
-    console.log(component);
     const sourceText = _tree.read(component.fullPath).toString('utf-8');
     const source = ts.createSourceFile(component.fullPath, sourceText, ts.ScriptTarget.Latest, true);
     const decoratorName = ast_utils_1.getDecoratorName(source);
-    // console.log('decoratorName');
-    // console.log(decoratorName);
     // if the component actually has a decorator
     if (decoratorName) {
         const decoratorPath = ast_utils_1.getDecoratorImportPath(source, decoratorName);
-        // console.log('decoratorPath');
-        // console.log(decoratorPath);
         // If it is an imported decorator
         if (decoratorPath) {
-            // console.log('decoratorPath');
-            // console.log(decoratorPath);
             const formattedDecoratorPath = formatAbsolutePath(decoratorPath, component);
             const decoratorFile = readDecoratorFile(_tree, formattedDecoratorPath);
             const decoratorObject = ast_utils_1.getDecoratorObject(decoratorFile, decoratorName);

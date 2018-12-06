@@ -622,12 +622,10 @@ export function getDecoratorImportPath(source: ts.SourceFile, decorator: string)
 export function removeBasePathFromDecorator(source: string) {
   if (source.includes('templateUrl') && source.includes('styleUrls')) {
     const parseableDecorator = makeParseable(source);
-    // console.log('parseableDecorator');
-    // console.log(parseableDecorator);
-
     const decorator = JSON.parse(parseableDecorator);
     decorator.templateUrl = removeBasePath(decorator.templateUrl);
     decorator.styleUrls[0] = removeBasePath(decorator.styleUrls[0]);
+    decorator.styleUrls[0] = changeToScss(decorator.styleUrls[0]);
     if (decorator.animations) {
       delete decorator.animations;
     }
@@ -635,6 +633,13 @@ export function removeBasePathFromDecorator(source: string) {
     return unFormatString(decoratorString);
   }
   return source;
+}
+
+function changeToScss(path: string) {
+  if (!path.includes('.scss')) {
+    return path.replace('.css', '.scss');
+  }
+  return path;
 }
 
 function removeBasePath(path: string) {

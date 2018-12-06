@@ -478,11 +478,10 @@ exports.getDecoratorImportPath = getDecoratorImportPath;
 function removeBasePathFromDecorator(source) {
     if (source.includes('templateUrl') && source.includes('styleUrls')) {
         const parseableDecorator = makeParseable(source);
-        // console.log('parseableDecorator');
-        // console.log(parseableDecorator);
         const decorator = JSON.parse(parseableDecorator);
         decorator.templateUrl = removeBasePath(decorator.templateUrl);
         decorator.styleUrls[0] = removeBasePath(decorator.styleUrls[0]);
+        decorator.styleUrls[0] = changeToScss(decorator.styleUrls[0]);
         if (decorator.animations) {
             delete decorator.animations;
         }
@@ -492,6 +491,12 @@ function removeBasePathFromDecorator(source) {
     return source;
 }
 exports.removeBasePathFromDecorator = removeBasePathFromDecorator;
+function changeToScss(path) {
+    if (!path.includes('.scss')) {
+        return path.replace('.css', '.scss');
+    }
+    return path;
+}
 function removeBasePath(path) {
     const filePathIndex = path.lastIndexOf('/');
     return '.' + path.substring(filePathIndex, path.length);
